@@ -1,6 +1,8 @@
-export interface Message {
+export interface MessageAnchor {
     id: string;
     name: string;
+    tabId: string;
+    dataStart: string;
     createdAt: Date;
 }
 
@@ -8,5 +10,6 @@ export interface Conversation {
     id: string;
     title: string;
     createdAt: Date;
-    messages: Message[];
+    tabId: string;
+    messages: MessageAnchor[];
 }

@@ -1,5 +1,27 @@
 {
+  "name": "conversation-anchor",
+  "version": "1.0.0",
+  "description": "Conversation Anchor",
+  "scripts": {
+    "build": "webpack --mode production",
+    "dev": "webpack --mode development --watch"
+  },
   "devDependencies": {
-    "@types/chrome": "^0.0.315"
+    "@types/chrome": "^0.0.315",
+    "clean-webpack-plugin": "^4.0.0",
+    "copy-webpack-plugin": "^11.0.0",
+    "css-loader": "^7.1.2",
+    "html-webpack-plugin": "^5.6.0",
+    "mini-css-extract-plugin": "^2.7.2",
+    "sass": "^1.86.3",
+    "sass-loader": "^13.3.3",
+    "style-loader": "^4.0.0",
+    "ts-loader": "^9.4.2",
+    "typescript": "^5.5.4",
+    "webpack": "^5.88.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "lucide": "^0.487.0"
   }
 }

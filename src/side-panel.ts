@@ -1,26 +1,33 @@
 import { Conversation, MessageAnchor } from "./types/types";
-
+import { mockConversationList } from "./mock/mockData";
 const storageKey = 'conversation-anchor';
-
+const conversationListElement = document.getElementById('conversation-list');
+import { createIcons } from 'lucide';
+import { icons } from './icons/icons';
 document.addEventListener('DOMContentLoaded', async () => {
-    const conversations = await getConversations();
-    renderConversations(conversations);
+    console.log('DOMContentLoaded');
+    debugger;
+    const conversationList = await getConversationList();
+    renderConversationList(conversationList);
+    createIcons({icons});
 });
 
-async function getConversations() {
-    const result = await chrome.storage.local.get(storageKey);
-    const storedData = result[storageKey] || [];
-    const conversations = storedData.map((conversation) : Conversation => {
+async function getConversationList() {
+/*     const result = await chrome.storage.local.get([storageKey]);
+    const storedData = result[storageKey] || []; */
+    const storedData = mockConversationList;
+    const conversations = storedData.map((conversation: any) : Conversation => {
         return {
             id: conversation.id,
             title: conversation.title,
             createdAt: new Date(conversation.createdAt),
-            tabId: conversation.tabId,
-            messages: conversation.messages?.map(msg => ({
+            tabId: conversation.tabId,/*  */
+            messages: conversation.messages?.map((msg: any): MessageAnchor => ({
                 id: msg.id,
                 name: msg.content,
                 createdAt: new Date(msg.createdAt),
                 dataStart: msg.dataStart,
+                tabId: msg.tabId,
             })),
         };
     });
@@ -28,43 +35,105 @@ async function getConversations() {
 }
 
 
-function renderConversations(conversations: Conversation[]) {
-    const conversationList = document.getElementById('conversation-list');
-    if (!conversationList) {
+function renderConversationList(conversationList: Conversation[]) {
+    const conversationListElement = document.getElementById('conversation-list');
+    if (!conversationListElement) {
         return;
     }
-    conversationList.innerHTML = '';
+    conversationListElement.innerHTML = '';
     const fragment = document.createDocumentFragment();
-    conversations.forEach((conversation) => {
+    conversationList.forEach((conversation) => {
         const li = document.createElement('li');
+        li.classList.add('conversation');
+        li.textContent = conversation.title;
         li.title = conversation.title;
         li.dataset.tabId = conversation.tabId;
         li.dataset.id = conversation.id;
-
+        const icon = document.createElement('i');
+        icon.dataset.lucide = 'folder-closed';
+        li.prepend(icon);
         // Add message anchors
-        const messageAnchors = document.createElement('ul');
-        messageAnchors.appendChild(buildMessageAnchors(conversation.messages));
+        const messageAnchorList = buildMessageAnchorList(conversation.messages);
 
         // Add conversations
-        li.appendChild(messageAnchors);
+        li.appendChild(messageAnchorList);
         fragment.appendChild(li);
     });
-    conversationList.appendChild(fragment);
+    conversationListElement.appendChild(fragment);
 }
 
-function buildMessageAnchors(messages: MessageAnchor[]) {
-    const fragment = document.createDocumentFragment();
+function buildMessageAnchorList(messages: MessageAnchor[]) {
+    const ul = document.createElement('ul');
     messages.forEach((message) => {
         const li = document.createElement('li');
+        li.classList.add('messageAnchor');
+        li.textContent = message.name;
         li.title = message.name;
         li.dataset.id = message.id;
         li.dataset.tabId = message.tabId;
         li.dataset.dataStart = message.dataStart;
-        fragment.appendChild(li);
+        ul.appendChild(li);
     });
-    return fragment;
+    return ul;
 }
 
+
+conversationListElement?.addEventListener('click', (event) => {
+    // find the action element
+    const actionElement = (event.target as HTMLElement)?.closest('[data-action]');
+    if (!(actionElement instanceof HTMLElement)) {
+        console.log('no action element');
+        return;
+    }
+    const action = actionElement.dataset.action;
+    if (!action) {
+        console.log('no action');
+        return;
+    }
+    
+    // get the closest parent li element
+    const li = actionElement.closest('li');
+    if (!(li instanceof HTMLElement)) {
+        console.log('no li element');
+        return;
+    }
+    // check li class (conversation or messageAnchor)
+    const liClass = li.classList;
+    const data = li.dataset;
+    if (liClass.contains('conversation')) {
+        handleConversation(data, action);
+    } else if (liClass.contains('messageAnchor')) {
+        handleMessageAnchor(data, action);
+    }
+});
+
+function handleConversation(data: any, action: string) {
+    switch (action) {
+        case 'delete':
+            deleteConversation(data.id);
+            break;
+        case 'navigateTo':
+            navigateToConversation(data.id);
+            break;
+        default:
+            console.log('unknown action');
+            break;
+    }
+}
+
+function handleMessageAnchor(data: any, action: string) {
+    switch (action) {
+        case 'delete':
+            deleteMessage(data.id);
+            break;
+        case 'navigateTo':
+            navigateToMessage(data.id);
+            break;
+        default:
+            console.log('unknown action');
+            break;
+    }
+}
 
 function deleteConversation(conversationId: string) {
 }
@@ -77,3 +146,9 @@ function navigateToConversation(conversationId: string) {
 
 function navigateToMessage(messageId: string) {
 }
+
+chrome.runtime.onMessage.addListener(message => {
+    if (message === 'closeSidePanel') {
+      window.close();
+    }
+  })
