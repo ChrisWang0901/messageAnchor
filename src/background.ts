@@ -1,4 +1,5 @@
-import { MessageAnchor } from './types/types';
+import { Conversation, MessageAnchor } from './types/types';
+import { getConversation, isConversationExisted, saveConversation } from './utils/conversation-utils';
 
 chrome.runtime.onInstalled.addListener(() => {
     chrome.contextMenus.create({
@@ -43,7 +44,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 // Function to handle anchoring the selected message
 async function anchorSelectedMessage(tab: chrome.tabs.Tab) {
   if (!tab?.id) return;
-  
+
   try {
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -58,7 +59,11 @@ async function anchorSelectedMessage(tab: chrome.tabs.Tab) {
         let dataStart = null;
 
         for (let cur = node; cur; cur = cur.parentElement) {
-          if (!dataStart && cur.tagName === "P" && cur.hasAttribute("data-start")) {
+          if (
+            !dataStart &&
+            cur.tagName === "P" &&
+            cur.hasAttribute("data-start")
+          ) {
             dataStart = cur.getAttribute("data-start");
           }
           if (cur.hasAttribute?.("data-message-id")) {
@@ -68,26 +73,76 @@ async function anchorSelectedMessage(tab: chrome.tabs.Tab) {
         }
 
         return { messageId, dataStart, selectionText: sel.toString() };
-      }
+      },
     });
 
     if (!result) {
-        throw new Error('No message ID or data start found');
+      throw new Error("No message ID or data start found");
     }
     const { messageId, dataStart, selectionText } = result;
     if (!messageId || !dataStart) {
-        throw new Error('No message ID or data start found');
+      throw new Error("No message ID or data start found");
     }
-    const messageAnchor : MessageAnchor = {
-        id:  `${messageId}:${dataStart}`,
-        dataStart,
-        createdAt: new Date(),
-        tabId: tab.id.toString(),
-        name: selectionText,
+    const messageAnchor: MessageAnchor = {
+      id: `${messageId}:${dataStart}`,
+      dataStart,
+      createdAt: new Date(),
+      tabId: tab.id.toString(),
+      name: selectionText,
     };
-    console.log('Message anchor:', messageAnchor);
+    const conversationId: string | null = getCurrentConversationId(tab);
+    if (!conversationId) {
+      throw new Error("No conversation ID found");
+    }
+    let conversation = await getConversation(conversationId);
+
+    if (!conversation) {
+      const title = await getCurrentConversationTitle(tab);
+
+      conversation = {
+        id: conversationId.toString(),
+        createdAt: new Date(),
+        messages: [],
+        title: title,
+        tabId: tab.id.toString(),
+      };
+    }
+    conversation.messages.push(messageAnchor);
+    await saveConversation(conversation);
+    console.log("Message anchor:", messageAnchor);
   } catch (error) {
-    console.error('Error anchoring message:', error);
+    console.error("Error anchoring message:", error);
   }
 }
 
+function getCurrentConversationId(tab: chrome.tabs.Tab) {
+    if (!tab.url || !tab.id) return null;
+    const url = new URL(tab.url);
+    let conversationId = null;
+    if (url.hostname.includes("chatgpt.com") || url.hostname.includes("chat.openai.com")) {
+        const match = url.pathname.match(/\/c\/([a-f0-9-]+)/i);
+        if (match) {
+            conversationId = match[1]; // ← the UUID
+        }
+    }
+
+    return conversationId;
+}
+
+async function getCurrentConversationTitle(tab: chrome.tabs.Tab): Promise<string> {
+    if (!tab.id) return 'No Title Found';
+  
+    try {
+      const [{ result: title }] = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => {
+          return document.title || 'No Title Found';
+        }
+      });
+  
+      return title || 'No Title Found';
+    } catch (error) {
+      console.error("Failed to extract title:", error);
+      return 'No Title Found';
+    }
+  }
