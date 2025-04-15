@@ -18,7 +18,7 @@ export async function loadConversationList(): Promise<Conversation[]> {
     const allObjects = await chrome.storage.local.get(null);
     const conversationList = Object.entries(allObjects)
     .filter(([k]) => k.startsWith('conv:'))
-    .map(([, v]) => v as Conversation);
+    .map(([, v]) => deserializeConversation(v));
     return conversationList;
 }
 

@@ -1,39 +1,15 @@
-import { Conversation, MessageAnchor } from "./types/types";
-import { mockConversationList } from "./mock/mockData";
-const storageKey = 'conversation-anchor';
+import { Conversation, MessageAnchor, ConversationData, MessageAnchorData } from "./types/types";
 const conversationListElement = document.getElementById('conversation-list');
 import { createIcons } from 'lucide';
 import { icons } from './icons/icons';
+import { loadConversationList } from "./utils/conversation-utils";
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('DOMContentLoaded');
     debugger;
-    const conversationList = await getConversationList();
+    const conversationList = await loadConversationList();
     renderConversationList(conversationList);
     createIcons({icons});
 });
-
-async function getConversationList() {
-/*     const result = await chrome.storage.local.get([storageKey]);
-    const storedData = result[storageKey] || []; */
-    const storedData = mockConversationList;
-    const conversations = storedData.map((conversation: any) : Conversation => {
-        return {
-            id: conversation.id,
-            title: conversation.title,
-            createdAt: new Date(conversation.createdAt),
-            tabId: conversation.tabId,/*  */
-            messages: conversation.messages?.map((msg: any): MessageAnchor => ({
-                id: msg.id,
-                name: msg.content,
-                createdAt: new Date(msg.createdAt),
-                dataStart: msg.dataStart,
-                tabId: msg.tabId,
-            })),
-        };
-    });
-    return conversations;
-}
-
 
 function renderConversationList(conversationList: Conversation[]) {
     const conversationListElement = document.getElementById('conversation-list');
@@ -49,9 +25,35 @@ function renderConversationList(conversationList: Conversation[]) {
         li.title = conversation.title;
         li.dataset.tabId = conversation.tabId;
         li.dataset.id = conversation.id;
-        const icon = document.createElement('i');
-        icon.dataset.lucide = 'folder-closed';
-        li.prepend(icon);
+        
+        // Create action buttons container
+        const actionsContainer = document.createElement('div');
+        actionsContainer.classList.add('actions');
+        
+        // Add navigate button with Compass icon
+        const navigateBtn = document.createElement('button');
+        navigateBtn.dataset.action = 'navigateTo';
+        const navIcon = document.createElement('i');
+        navIcon.dataset.lucide = 'compass';
+        navigateBtn.appendChild(navIcon);
+        actionsContainer.appendChild(navigateBtn);
+        
+        // Add delete button with Trash2 icon
+        const deleteBtn = document.createElement('button');
+        deleteBtn.dataset.action = 'delete';
+        const deleteIcon = document.createElement('i');
+        deleteIcon.dataset.lucide = 'trash-2';
+        deleteBtn.appendChild(deleteIcon);
+        actionsContainer.appendChild(deleteBtn);
+        
+        // Add folder icon
+        const folderIcon = document.createElement('i');
+        folderIcon.dataset.lucide = 'folder-closed';
+        li.prepend(folderIcon);
+        
+        // Add actions to the li
+        li.appendChild(actionsContainer);
+        
         // Add message anchors
         const messageAnchorList = buildMessageAnchorList(conversation.messages);
 
@@ -70,8 +72,32 @@ function buildMessageAnchorList(messages: MessageAnchor[]) {
         li.textContent = message.name;
         li.title = message.name;
         li.dataset.id = message.id;
-        li.dataset.tabId = message.tabId;
+        li.dataset.conversationId = message.conversationId;
         li.dataset.dataStart = message.dataStart;
+        
+        // Create action buttons container
+        const actionsContainer = document.createElement('div');
+        actionsContainer.classList.add('actions');
+        
+        // Add navigate button with Compass icon
+        const navigateBtn = document.createElement('button');
+        navigateBtn.dataset.action = 'navigateTo';
+        const navIcon = document.createElement('i');
+        navIcon.dataset.lucide = 'compass';
+        navigateBtn.appendChild(navIcon);
+        actionsContainer.appendChild(navigateBtn);
+        
+        // Add delete button with Trash2 icon
+        const deleteBtn = document.createElement('button');
+        deleteBtn.dataset.action = 'delete';
+        const deleteIcon = document.createElement('i');
+        deleteIcon.dataset.lucide = 'trash-2';
+        deleteBtn.appendChild(deleteIcon);
+        actionsContainer.appendChild(deleteBtn);
+        
+        // Add actions to the li
+        li.appendChild(actionsContainer);
+        
         ul.appendChild(li);
     });
     return ul;
@@ -101,19 +127,30 @@ conversationListElement?.addEventListener('click', (event) => {
     const liClass = li.classList;
     const data = li.dataset;
     if (liClass.contains('conversation')) {
-        handleConversation(data, action);
+        const conversationData = {
+            id: data.id,
+            tabId: data.tabId,
+        } as ConversationData;
+        handleConversation(conversationData, action);
     } else if (liClass.contains('messageAnchor')) {
-        handleMessageAnchor(data, action);
+        const messageAnchorData = {
+            id: data.id,
+            conversationId: data.conversationId,
+            dataStart: data.dataStart,
+        } as MessageAnchorData;
+        handleMessageAnchor(messageAnchorData, action);
     }
 });
 
-function handleConversation(data: any, action: string) {
+function handleConversation(data: ConversationData, action: string) {
     switch (action) {
         case 'delete':
             deleteConversation(data.id);
+            console.log('delete conversation', data);
             break;
         case 'navigateTo':
-            navigateToConversation(data.id);
+            navigateToConversation(data);
+            console.log('navigate to conversation', data);
             break;
         default:
             console.log('unknown action');
@@ -121,13 +158,15 @@ function handleConversation(data: any, action: string) {
     }
 }
 
-function handleMessageAnchor(data: any, action: string) {
+function handleMessageAnchor(data: MessageAnchorData, action: string) {
     switch (action) {
         case 'delete':
             deleteMessage(data.id);
+            console.log('delete message', data);
             break;
         case 'navigateTo':
-            navigateToMessage(data.id);
+            navigateToMessage(data);
+            console.log('navigate to message', data);
             break;
         default:
             console.log('unknown action');
@@ -141,10 +180,18 @@ function deleteConversation(conversationId: string) {
 function deleteMessage(messageId: string) {
 }
 
-function navigateToConversation(conversationId: string) {
+function navigateToConversation(data: ConversationData) {
+    chrome.runtime.sendMessage({
+        action: 'navigateToConversation',
+        data: data,
+    });
 }
 
-function navigateToMessage(messageId: string) {
+function navigateToMessage(data: MessageAnchorData) {
+    chrome.runtime.sendMessage({
+        action: 'navigateToMessage',
+        data: data,
+    });
 }
 
 chrome.runtime.onMessage.addListener(message => {
